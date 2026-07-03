@@ -56,6 +56,12 @@ public class IpUtils {
         try {
             return new InetSocketAddress(matcher.group(1), Integer.valueOf(matcher.group(2)));
         } catch (IllegalArgumentException e) {
+            logger.warn(
+                    "Invalid address with host '{}' and port '{}': {}",
+                    matcher.group(1),
+                    matcher.group(2),
+                    e.getMessage()
+            );
             return null;
         }
     }
