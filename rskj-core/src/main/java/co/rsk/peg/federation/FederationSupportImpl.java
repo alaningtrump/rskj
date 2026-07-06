@@ -415,6 +415,7 @@ public class FederationSupportImpl implements FederationSupport {
     @Override
     public void clearProposedFederation() {
         provider.setProposedFederation(null);
+        logger.info("[clearProposedFederation] Proposed federation cleared");
     }
 
     @Override
@@ -425,7 +426,8 @@ public class FederationSupportImpl implements FederationSupport {
                 .filter(function -> function.getKey().equals(calledFunction))
                 .findAny();
         if (federationChangeFunction.isEmpty()) {
-            logger.warn("[voteFederationChange] Federation change function \"{}\" does not exist.", StringUtils.trim(calledFunction));
+            String calledFunctionTrimmed = StringUtils.trim(calledFunction);
+            logger.warn("[voteFederationChange] Federation change function \"{}\" does not exist.", calledFunctionTrimmed);
             return NON_EXISTING_FUNCTION_CALLED.getCode();
         }
 
@@ -533,6 +535,7 @@ public class FederationSupportImpl implements FederationSupport {
             case ROLLBACK -> executionResult = rollbackFederation(dryRun);
         }
 
+        logger.info("[executeVoteFederationChangeFunction] Execution result: {}. Is dryRun? {}", executionResult, dryRun);
         boolean executionWasSuccessful = executionResult == 1;
         return new ABICallVoteResult(executionWasSuccessful, executionResult);
     }
@@ -712,6 +715,7 @@ public class FederationSupportImpl implements FederationSupport {
 
         handoverToNewFederation(proposedFederation);
         clearProposedFederation();
+        logger.info("[commitProposedFederation] Committed to proposed federation {}", proposedFederation.getAddress());
     }
 
     private void handoverToNewFederation(Federation newFederation) {
@@ -722,25 +726,35 @@ public class FederationSupportImpl implements FederationSupport {
             setLastRetiredFederationScript();
             setNextFederationCreationBlockHeight(newFederation);
         }
+
+        logger.info("[handoverToNewFederation] Handover to new federation completed successfully.");
     }
 
     private void setOldAndNewFederations(Federation oldFederation, Federation newFederation) {
         provider.setOldFederation(oldFederation);
         provider.setNewFederation(newFederation);
+        logger.info(
+            "[setOldAndNewFederations] Old federation set to {}, new federation set to {}.",
+            oldFederation.getAddress(),
+            newFederation.getAddress()
+        );
     }
 
     private void moveUTXOsFromNewToOldFederation() {
         // since the current active fed reference will change from being 'new' to 'old',
         // we have to change the UTXOs reference to match it
         List<UTXO> activeFederationUTXOs = List.copyOf(provider.getNewFederationBtcUTXOs(constants.getBtcParams(), activations));
+        logger.debug("[moveUTXOsFromNewToOldFederation] Moving {} UTXOs from new to old federation.", activeFederationUTXOs.size());
 
         // Clear new and old federation's UTXOs
         provider.getNewFederationBtcUTXOs(constants.getBtcParams(), activations).clear();
         List<UTXO> oldFederationUTXOs = provider.getOldFederationBtcUTXOs();
         oldFederationUTXOs.clear();
+        logger.debug("[moveUTXOsFromNewToOldFederation] Cleared new and old federation's UTXOs");
 
         // Move UTXOs reference to the old federation
         oldFederationUTXOs.addAll(activeFederationUTXOs);
+        logger.info("[moveUTXOsFromNewToOldFederation] Moved {} UTXOs from new to old federation.", activeFederationUTXOs.size());
     }
 
     /**
@@ -752,9 +766,9 @@ public class FederationSupportImpl implements FederationSupport {
         // set proposed federation
         Federation proposedFederation = buildFederationFromPendingFederation(currentPendingFederation);
         provider.setProposedFederation(proposedFederation);
+        logger.info("[commitPendingFederation] Proposed federation set to {}", proposedFederation.getAddress());
 
         clearPendingFederationVoting();
-
         logCommitmentWithVotedFederation(eventLogger, getActiveFederation(), proposedFederation);
 
         return SUCCESSFUL;
@@ -792,12 +806,19 @@ public class FederationSupportImpl implements FederationSupport {
         // Clear pending federation and votes on election
         provider.setPendingFederation(null);
         provider.getFederationElection(constants.getFederationChangeAuthorizer()).clear();
+        logger.info("[clearPendingFederationVoting] Pending federation and votes on election cleared");
     }
 
     private void setLastRetiredFederationScript() {
         Federation activeFederation = getActiveFederation();
         Script activeFederationMembersP2SHScript = getFederationMembersP2SHScript(activations, activeFederation);
         provider.setLastRetiredFederationP2SHScript(activeFederationMembersP2SHScript);
+
+        String lastRetiredFederationP2SHScriptInHex = ByteUtil.toHexString(activeFederationMembersP2SHScript.getProgram());
+        logger.info(
+            "[setLastRetiredFederationScript] Last retired federation script set to {}.",
+            lastRetiredFederationP2SHScriptInHex
+        );
     }
 
     private void setNextFederationCreationBlockHeight(Federation nextFederation) {
