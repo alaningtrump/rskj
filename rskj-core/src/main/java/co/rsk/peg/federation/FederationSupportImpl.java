@@ -2,6 +2,7 @@ package co.rsk.peg.federation;
 
 import static co.rsk.peg.federation.FederationChangeResponseCode.*;
 import static org.ethereum.config.blockchain.upgrades.ConsensusRule.*;
+import static org.ethereum.util.ByteUtil.EMPTY_BYTE_ARRAY;
 
 import co.rsk.bitcoinj.core.*;
 import co.rsk.bitcoinj.script.Script;
@@ -351,7 +352,7 @@ public class FederationSupportImpl implements FederationSupport {
         PendingFederation currentPendingFederation = getPendingFederation();
 
         if (currentPendingFederation == null) {
-            return null;
+            return EMPTY_BYTE_ARRAY;
         }
 
         List<BtcECKey> publicKeys = currentPendingFederation.getBtcPublicKeys();
@@ -364,10 +365,15 @@ public class FederationSupportImpl implements FederationSupport {
         PendingFederation currentPendingFederation = provider.getPendingFederation();
 
         if (currentPendingFederation == null) {
-            return null;
+            return EMPTY_BYTE_ARRAY;
         }
 
-        return getFederationMemberPublicKeyOfType(currentPendingFederation.getMembers(), index, keyType, "Federator");
+        return getFederationMemberPublicKeyOfType(
+            currentPendingFederation.getMembers(),
+            index,
+            keyType,
+            "Federator"
+        );
     }
 
     @Override
@@ -640,7 +646,7 @@ public class FederationSupportImpl implements FederationSupport {
      * after checking conditions are met to do so.
      * @param dryRun whether to just do a dry run
      * @param pendingFederationHash the pending federation's hash. This is checked to match the execution block's pending federation hash.
-     * @return PENDING_FEDERATION_NON_EXISTENT if there was no pending federation,
+     * @return FEDERATION_NON_EXISTENT if there was no pending federation,
      * INSUFFICIENT_MEMBERS if the pending federation was incomplete,
      * PENDING_FEDERATION_MISMATCHED_HASH if the given hash doesn't match the current pending federation's hash.
      * SUCCESSFUL upon success.
@@ -710,12 +716,11 @@ public class FederationSupportImpl implements FederationSupport {
 
     private void handoverToNewFederation(Federation newFederation) {
         moveUTXOsFromNewToOldFederation();
-
         setOldAndNewFederations(getActiveFederation(), newFederation);
 
         if (activations.isActive(RSKIP186)) {
-            saveLastRetiredFederationScript();
-            provider.setNextFederationCreationBlockHeight(newFederation.getCreationBlockNumber());
+            setLastRetiredFederationScript();
+            setNextFederationCreationBlockHeight(newFederation);
         }
     }
 
@@ -789,10 +794,19 @@ public class FederationSupportImpl implements FederationSupport {
         provider.getFederationElection(constants.getFederationChangeAuthorizer()).clear();
     }
 
-    private void saveLastRetiredFederationScript() {
+    private void setLastRetiredFederationScript() {
         Federation activeFederation = getActiveFederation();
         Script activeFederationMembersP2SHScript = getFederationMembersP2SHScript(activations, activeFederation);
         provider.setLastRetiredFederationP2SHScript(activeFederationMembersP2SHScript);
+    }
+
+    private void setNextFederationCreationBlockHeight(Federation nextFederation) {
+        long nextFederationCreationBlockNumber = nextFederation.getCreationBlockNumber();
+        provider.setNextFederationCreationBlockHeight(nextFederationCreationBlockNumber);
+        logger.info(
+            "[setNextFederationCreationBlockHeight] Next federation creation block height set to {}.",
+            nextFederationCreationBlockNumber
+        );
     }
 
     private void logCommitmentWithVotedFederation(BridgeEventLogger eventLogger, Federation federationToBeRetired, Federation votedFederation) {
@@ -897,10 +911,15 @@ public class FederationSupportImpl implements FederationSupport {
      * @return federation member's public key
      */
     private byte[] getFederationMemberPublicKeyOfType(
-          List<FederationMember> members, int index, FederationMember.KeyType keyType, String errorPrefix) {
+        List<FederationMember> members,
+        int index,
+        FederationMember.KeyType keyType,
+        String errorPrefix
+    ) {
         if (index < 0 || index >= members.size()) {
             throw new IndexOutOfBoundsException(
-                String.format("%s index must be between 0 and %d (found: %d)", errorPrefix, members.size() - 1, index));
+                String.format("%s index must be between 0 and %d (found: %d)", errorPrefix, members.size() - 1, index)
+            );
         }
 
         return members.get(index).getPublicKey(keyType).getPubKey(true);
@@ -913,7 +932,7 @@ public class FederationSupportImpl implements FederationSupport {
         }
 
         Optional<Long> nextFederationCreationBlockHeightOpt = provider.getNextFederationCreationBlockHeight(activations);
-        if (!nextFederationCreationBlockHeightOpt.isPresent()) {
+        if (nextFederationCreationBlockHeightOpt.isEmpty()) {
             return;
         }
 
