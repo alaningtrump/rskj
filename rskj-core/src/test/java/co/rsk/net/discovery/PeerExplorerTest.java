@@ -109,6 +109,7 @@ class PeerExplorerTest {
         nodes.add("localhost:3306:abd");
         nodes.add("");
         nodes.add(null);
+        nodes.add("localhost:65536"); // M4: out-of-range port, must be skipped without aborting construction
 
         Node node = new Node(new ECKey().getNodeId(), HOST_1, PORT_1);
         NodeDistanceTable distanceTable = new NodeDistanceTable(KademliaOptions.BINS, KademliaOptions.BUCKET_SIZE, node);

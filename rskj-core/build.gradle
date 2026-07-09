@@ -434,6 +434,8 @@ dependencies {
     testImplementation "${testLibs.commonsCodecLib}"
     testImplementation "${testLibs.okhttpWsLib}"
     testImplementation "${testLibs.rskLllLib}"
+    testImplementation "${libs.logbackCoreLib}"
+    testImplementation "${libs.logbackClassicLib}"
 
     integrationTestImplementation "${testLibs.junitLib}"
     integrationTestImplementation "${testLibs.junitParams}"
